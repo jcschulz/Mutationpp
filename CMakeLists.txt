@@ -29,6 +29,8 @@
 #
 cmake_minimum_required(VERSION 3.5)
 cmake_policy(SET CMP0048 NEW)
+cmake_policy(SET CMP0074 NEW)
+
 set(CMAKE_CXX_STANDARD 11)
 
 project(mutation++
@@ -45,6 +47,8 @@ enable_language(CXX)
 if (BUILD_FORTRAN_WRAPPER)
     enable_language(Fortran)
 endif()
+
+include(FetchContent)
 
 
 ###############################################################################
@@ -89,7 +93,7 @@ set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH
     "Install path prefix, prepended onto install directories.")
 
 if(NOT IS_ABSOLUTE ${CMAKE_INSTALL_PREFIX})
-    message(FATAL_ERROR 
+    message(FATAL_ERROR
         "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}"
         "You must provide an absolute install prefix...
         Try to use `readlink -f` or `realpath` commands")
@@ -109,7 +113,7 @@ foreach (dir LIB BIN INCLUDE CMAKE)
     mark_as_advanced(${inst_dir})
 
     # Make the paths absolute (the ${${var}} notation is evaluating the
-    # evaluated variable. :: I.e. ${inst_dir} first evaluates, for example, 
+    # evaluated variable. :: I.e. ${inst_dir} first evaluates, for example,
     # to INSTALL_LIB_DIR. Then ${${inst_dir}} evaluates to ${INSTALL_LIB_DIR}
     # that respectively evaluates to the directory path containing libraries
     if(NOT IS_ABSOLUTE "${${inst_dir}}")
@@ -186,14 +190,33 @@ endif()
 ###############################################################################
 
 # Eigen
-find_package(Eigen3)
+option(MPP_FETCH_EIGEN "Download Eigen3 dependency from GitHub" OFF)
+if(MPP_FETCH_EIGEN)
+    message(STATUS "Eigen3 dependency will be downloaded")
+    FetchContent_Declare(Eigen3
+        GIT_REPOSITORY      https://github.com/eigenteam/eigen-git-mirror.git
+        GIT_TAG             22cb9414cb0c65b042717c5ccc5aee4c0cdf95c6
+        GIT_SHALLOW         TRUE
+    )
+    # Don't use FetchContent_MakeAvailable
+    # Eigen doesn't play nice when BUILD_TESTING=ON
+    FetchContent_GetProperties(Eigen3)
+    if(NOT Eigen3_POPULATED)
+        FetchContent_Populate(Eigen3)
+        add_library(Eigen3::Eigen INTERFACE IMPORTED)
+        target_include_directories(Eigen3::Eigen SYSTEM INTERFACE ${eigen3_SOURCE_DIR})
+    endif()
+else()
+    find_package(Eigen3 REQUIRED)
+endif()
+
 
 
 ###############################################################################
 # Source code
 ################################################################################
 option(ENABLE_COVERAGE "Generate coverage for codecov.io" OFF)
-list(APPEND LCOV_REMOVE_PATTERNS 
+list(APPEND LCOV_REMOVE_PATTERNS
     "'/usr/*'"
     "'*/tests/*'"
     "'*/install/*'"
